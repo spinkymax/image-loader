@@ -9,6 +9,7 @@ type repository interface {
 	AddUser(ctx context.Context, user model.User) error
 	GetUser(ctx context.Context, id int64) (model.User, error)
 	UpdateUser(ctx context.Context, modelUser model.User) error
+	DeleteUser(ctx context.Context, modelUser model.User) error
 }
 
 type Controller struct {
@@ -29,4 +30,8 @@ func (c *Controller) GetUser(ctx context.Context, id int64) (model.User, error) 
 
 func (c *Controller) UpdateUser(ctx context.Context, user model.User) error {
 	return c.repo.UpdateUser(ctx, user)
+}
+
+func (c *Controller) DeleteUser(ctx context.Context, user model.User) error {
+	return c.repo.DeleteUser(ctx, user)
 }

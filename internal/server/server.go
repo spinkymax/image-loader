@@ -23,6 +23,7 @@ type controller interface {
 	AddUser(ctx context.Context, user model.User) error
 	GetUser(ctx context.Context, id int64) (model.User, error)
 	UpdateUser(ctx context.Context, modelUser model.User) error
+	DeleteUser(ctx context.Context, modelUser model.User) error
 }
 
 type Server struct {
@@ -45,6 +46,7 @@ func (s *Server) RegisterRoutes() {
 	s.r.Get("/user/{userID}", s.HandleGetUser)
 	s.r.Post("/user/add", s.HandleAddUser)
 	s.r.Put("/user/update", s.HandleUpdateUser)
+	s.r.Delete("/user/delete", s.HandleDeleteUser)
 }
 
 func (s *Server) StartRouter() {
@@ -129,6 +131,31 @@ func (s *Server) HandleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	}(r.Body)
 
 	err = s.c.UpdateUser(r.Context(), user.toModel())
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) HandleDeleteUser(w http.ResponseWriter, r *http.Request) {
+	var user User
+
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		s.handleError(err, http.StatusBadRequest, w)
+		return
+	}
+
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			s.logger.Error(err)
+		}
+	}(r.Body)
+
+	err = s.c.DeleteUser(r.Context(), user.toModel())
 	if err != nil {
 		s.handleError(err, http.StatusInternalServerError, w)
 		return

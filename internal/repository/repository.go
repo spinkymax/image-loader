@@ -92,7 +92,17 @@ func (u *UserRepo) UpdateUser(ctx context.Context, modelUser model.User) error {
 	}
 
 	return nil
+}
 
+func (u *UserRepo) DeleteUser(ctx context.Context, modelUser model.User) error {
+	query := `DELETE FROM users  WHERE id = :id`
+
+	_, err := u.db.NamedExecContext(ctx, query, convertUser(modelUser))
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	return nil
 }
 
 func convertUser(modelUser model.User) user {
