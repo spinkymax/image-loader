@@ -8,8 +8,8 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jmoiron/sqlx"
-	"image-loader/internal/config"
-	"image-loader/internal/model"
+	"github.com/spinkymax/image-loader/internal/config"
+	"github.com/spinkymax/image-loader/internal/model"
 )
 
 type user struct {

@@ -5,10 +5,10 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/sirupsen/logrus"
-	"image-loader/internal/config"
-	"image-loader/internal/repository"
-	"image-loader/internal/server"
-	"image-loader/internal/service"
+	"github.com/spinkymax/image-loader/internal/config"
+	"github.com/spinkymax/image-loader/internal/repository"
+	"github.com/spinkymax/image-loader/internal/server"
+	"github.com/spinkymax/image-loader/internal/service"
 )
 
 func main() {

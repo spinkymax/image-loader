@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"github.com/go-chi/chi"
 	"github.com/sirupsen/logrus"
-	"image-loader/internal/model"
+	"github.com/spinkymax/image-loader/internal/model"
 	"io"
 	"net/http"
 	"strconv"

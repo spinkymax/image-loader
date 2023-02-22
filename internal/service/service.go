@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"image-loader/internal/model"
+	"github.com/spinkymax/image-loader/internal/model"
 )
 
 type repository interface {

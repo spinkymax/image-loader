@@ -1,4 +1,4 @@
-module image-loader
+module  github.com/spinkymax/image-loader
 
 go 1.19
 
