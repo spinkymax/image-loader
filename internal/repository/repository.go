@@ -1,100 +1,157 @@
 package repository
 
 import (
-	"encoding/json"
+	"context"
+	"database/sql"
 	"fmt"
-	"image-loader/internal/model"
-	"io"
-	"os"
-	"sync"
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jmoiron/sqlx"
+	"github.com/spinkymax/image-loader/internal/config"
+	"github.com/spinkymax/image-loader/internal/model"
 )
 
-type User struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
+type user struct {
+	ID          int64          `db:"id"`
+	Name        string         `db:"name"`
+	Login       string         `db:"login"`
+	Password    string         `db:"password"`
+	Description sql.NullString `db:"description"`
 }
 
 type UserRepo struct {
-	mut      *sync.RWMutex
-	filename string
+	db  *sqlx.DB
+	cfg *config.DB
 }
 
-func NewUserRepo(filename string) *UserRepo {
+func NewUserRepo(db *sqlx.DB, cfg *config.DB) *UserRepo {
 	return &UserRepo{
-		filename: filename,
-		mut:      &sync.RWMutex{},
+		db:  db,
+		cfg: cfg,
 	}
 }
 
-func (u *UserRepo) AddUser(user model.User) error {
-	u.mut.Lock()
-	defer u.mut.Unlock()
-	file, err := os.OpenFile(u.filename, os.O_RDWR|os.O_CREATE, os.ModePerm)
+func (u *UserRepo) RunMigrations() error {
+	driver, err := postgres.WithInstance(u.db.DB, &postgres.Config{})
 	if err != nil {
-		return fmt.Errorf("couldn't open  file: %w", err)
+		return fmt.Errorf("failed to get migration tool driver: %w", err)
 	}
 
-	defer file.Close()
-
-	b, err := io.ReadAll(file)
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://db/migrations",
+		u.cfg.Driver, driver)
 	if err != nil {
-		return fmt.Errorf("couldn't read file: %w", err)
+		return fmt.Errorf("failed to connect migration tool: %w", err)
 	}
 
-	users := make([]User, 0)
-	if len(b) != 0 {
-		err = json.Unmarshal(b, &users)
-		if err != nil {
-			return fmt.Errorf("failed to unmarshal users: %w", err)
-		}
-	}
-
-	users = append(users, User(user))
-
-	_, err = file.Seek(0, 0)
+	err = m.Up()
 	if err != nil {
-		return fmt.Errorf("failed to return beggining of the file: %w", err)
-	}
-
-	b, err = json.MarshalIndent(&users, "\t", "")
-	if err != nil {
-		return fmt.Errorf("failed to marshal users: %w", err)
-	}
-
-	_, err = file.Write(b)
-	if err != nil {
-		return fmt.Errorf("failed to write users to file: %w", err)
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return nil
 }
 
-func (u *UserRepo) GetUser(id int) (model.User, error) {
-	u.mut.RLock()
-	defer u.mut.RUnlock()
-	file, err := os.OpenFile(u.filename, os.O_RDONLY|os.O_CREATE, os.ModePerm)
+func (u *UserRepo) AddUser(ctx context.Context, modelUser model.User) error {
+	query := `INSERT INTO users(name, description, login, password) VALUES (:name, :description, :login, :password)`
+
+	user := convertUser(modelUser)
+
+	_, err := u.db.NamedExecContext(ctx, query, &user)
 	if err != nil {
-		return model.User{}, fmt.Errorf("couldn't open file: %w", err)
+		return fmt.Errorf("failed to insert user: %w", err)
 	}
 
-	defer file.Close()
+	return nil
+}
 
-	decoder := json.NewDecoder(file)
+func (u *UserRepo) GetUser(ctx context.Context, id int64) (model.User, error) {
+	query := `SELECT * FROM users WHERE id = $1`
 
-	_, err = decoder.Token()
+	var us user
+
+	row := u.db.QueryRowxContext(ctx, query, id)
+
+	err := row.StructScan(&us)
 	if err != nil {
-		return model.User{}, fmt.Errorf("failed to get first json token: %w", err)
+		return model.User{}, fmt.Errorf("failed to scan user: %w", err)
 	}
 
-	for decoder.More() {
-		var user User
-		err = decoder.Decode(&user)
+	return us.toModel(), nil
+
+}
+
+func (u *UserRepo) UpdateUser(ctx context.Context, modelUser model.User) error {
+	query := `UPDATE users set (name, description, login, password) = (:name, :description, :login, :password) 
+             WHERE id = :id`
+
+	_, err := u.db.NamedExecContext(ctx, query, convertUser(modelUser))
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	return nil
+}
+
+func (u *UserRepo) DeleteUser(ctx context.Context, id int64) error {
+	query := `DELETE FROM users where id = $1`
+
+	_, err := u.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+
+	return nil
+}
+
+func (u *UserRepo) GetAllUsers(ctx context.Context) ([]model.User, error) {
+
+	users := make([]model.User, 0)
+
+	rows, err := u.db.Queryx("SELECT * FROM users")
+
+	if err != nil {
+		return []model.User{}, fmt.Errorf("failed to scan users: %w", err)
+	}
+
+	for rows.Next() {
+		var userEntity user
+
+		err := rows.StructScan(&userEntity)
 		if err != nil {
-			return model.User{}, fmt.Errorf("failed to decode user: %w", err)
+			return []model.User{}, fmt.Errorf("failed to scan users: %w", err)
 		}
-		if user.Id == id {
-			return model.User(user), nil
-		}
+		users = append(users, userEntity.toModel())
 	}
-	return model.User{}, fmt.Errorf("couldn't find the user")
+
+	err = rows.Err()
+	if err != nil {
+		return []model.User{}, fmt.Errorf("failed to mapping users: %w", err)
+	}
+
+	return users, nil
+}
+
+func convertUser(modelUser model.User) user {
+	return user{
+		ID:       modelUser.ID,
+		Name:     modelUser.Name,
+		Login:    modelUser.Login,
+		Password: modelUser.Password,
+		Description: sql.NullString{
+			String: modelUser.Description,
+			Valid:  true,
+		},
+	}
+}
+
+func (u user) toModel() model.User {
+	return model.User{
+		ID:          u.ID,
+		Name:        u.Name,
+		Login:       u.Login,
+		Password:    u.Password,
+		Description: u.Description.String,
+	}
 }

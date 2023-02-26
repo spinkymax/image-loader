@@ -1,23 +1,30 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/go-chi/chi"
 	"github.com/sirupsen/logrus"
-	"image-loader/internal/model"
+	"github.com/spinkymax/image-loader/internal/model"
 	"io"
 	"net/http"
 	"strconv"
 )
 
 type User struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Login       string `json:"login"`
+	Password    string `json:"password"`
+	Description string `json:"description"`
 }
 
 type controller interface {
-	AddUser(user model.User) error
-	GetUser(id int) (model.User, error)
+	AddUser(ctx context.Context, user model.User) error
+	GetUser(ctx context.Context, id int64) (model.User, error)
+	UpdateUser(ctx context.Context, modelUser model.User) error
+	DeleteUser(ctx context.Context, id int64) error
+	GetAllUsers(ctx context.Context) ([]model.User, error)
 }
 
 type Server struct {
@@ -39,6 +46,9 @@ func NewServer(listenURI string, logger *logrus.Logger, c controller) *Server {
 func (s *Server) RegisterRoutes() {
 	s.r.Get("/user/{userID}", s.HandleGetUser)
 	s.r.Post("/user/add", s.HandleAddUser)
+	s.r.Put("/user/update", s.HandleUpdateUser)
+	s.r.Delete("/user/{userID}", s.HandleDeleteUser)
+	s.r.Get("/user", s.HandleGetAllUsers)
 }
 
 func (s *Server) StartRouter() {
@@ -69,27 +79,25 @@ func (s *Server) HandleAddUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}(r.Body)
 
-	err = s.c.AddUser(model.User(user))
-
+	err = s.c.AddUser(r.Context(), user.toModel())
 	if err != nil {
 		s.handleError(err, http.StatusInternalServerError, w)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (s *Server) HandleGetUser(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "userID")
 
-	id, err := strconv.Atoi(idStr)
+	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		s.handleError(err, http.StatusBadRequest, w)
 		return
 	}
 
-	user, err := s.c.GetUser(id)
+	user, err := s.c.GetUser(context.Background(), id)
 	if err != nil {
 		s.handleError(err, http.StatusInternalServerError, w)
 		return
@@ -108,6 +116,70 @@ func (s *Server) HandleGetUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) HandleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	var user User
+
+	err := json.NewDecoder(r.Body).Decode(&user)
+	if err != nil {
+		s.handleError(err, http.StatusBadRequest, w)
+		return
+	}
+
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			s.logger.Error(err)
+		}
+	}(r.Body)
+
+	err = s.c.UpdateUser(r.Context(), user.toModel())
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) HandleDeleteUser(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "userID")
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		s.handleError(err, http.StatusBadRequest, w)
+		return
+	}
+
+	err = s.c.DeleteUser(r.Context(), id)
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) HandleGetAllUsers(w http.ResponseWriter, r *http.Request) {
+	user, err := s.c.GetAllUsers(context.Background())
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+	b, err := json.Marshal(&user)
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(b)
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+
+}
+
 func (s *Server) handleError(err error, status int, w http.ResponseWriter) {
 	s.logger.Error(err)
 	w.WriteHeader(status)
@@ -116,4 +188,14 @@ func (s *Server) handleError(err error, status int, w http.ResponseWriter) {
 		s.logger.Error(err)
 	}
 
+}
+
+func (u User) toModel() model.User {
+	return model.User{
+		ID:          u.ID,
+		Name:        u.Name,
+		Description: u.Description,
+		Login:       u.Login,
+		Password:    u.Password,
+	}
 }
