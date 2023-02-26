@@ -118,7 +118,10 @@ func (u *UserRepo) GetAllUsers(ctx context.Context) ([]model.User, error) {
 	for rows.Next() {
 		var userEntity user
 
-		err = rows.StructScan(&userEntity)
+		err := rows.StructScan(&userEntity)
+		if err != nil {
+			return []model.User{}, fmt.Errorf("failed to scan users: %w", err)
+		}
 		users = append(users, userEntity.toModel())
 	}
 
