@@ -38,7 +38,7 @@ func main() {
 
 	controller := service.NewController(userRepo)
 
-	srv := server.NewServer(":8000", logger, controller)
+	srv := server.NewServer(cfg.Port, logger, controller)
 
 	srv.RegisterRoutes()
 	srv.StartRouter()

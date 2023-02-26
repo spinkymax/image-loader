@@ -23,7 +23,8 @@ type controller interface {
 	AddUser(ctx context.Context, user model.User) error
 	GetUser(ctx context.Context, id int64) (model.User, error)
 	UpdateUser(ctx context.Context, modelUser model.User) error
-	DeleteUser(ctx context.Context, modelUser model.User) error
+	DeleteUser(ctx context.Context, id int64) error
+	GetAllUsers(ctx context.Context) ([]model.User, error)
 }
 
 type Server struct {
@@ -46,7 +47,8 @@ func (s *Server) RegisterRoutes() {
 	s.r.Get("/user/{userID}", s.HandleGetUser)
 	s.r.Post("/user/add", s.HandleAddUser)
 	s.r.Put("/user/update", s.HandleUpdateUser)
-	s.r.Delete("/user/delete", s.HandleDeleteUser)
+	s.r.Delete("/user/{userID}", s.HandleDeleteUser)
+	s.r.Get("/user", s.HandleGetAllUsers)
 }
 
 func (s *Server) StartRouter() {
@@ -83,7 +85,7 @@ func (s *Server) HandleAddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (s *Server) HandleGetUser(w http.ResponseWriter, r *http.Request) {
@@ -140,28 +142,42 @@ func (s *Server) HandleUpdateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) HandleDeleteUser(w http.ResponseWriter, r *http.Request) {
-	var user User
+	idStr := chi.URLParam(r, "userID")
 
-	err := json.NewDecoder(r.Body).Decode(&user)
+	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		s.handleError(err, http.StatusBadRequest, w)
 		return
 	}
 
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			s.logger.Error(err)
-		}
-	}(r.Body)
-
-	err = s.c.DeleteUser(r.Context(), user.toModel())
+	err = s.c.DeleteUser(r.Context(), id)
 	if err != nil {
 		s.handleError(err, http.StatusInternalServerError, w)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Server) HandleGetAllUsers(w http.ResponseWriter, r *http.Request) {
+	user, err := s.c.GetAllUsers(context.Background())
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+	b, err := json.Marshal(&user)
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(b)
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+
 }
 
 func (s *Server) handleError(err error, status int, w http.ResponseWriter) {

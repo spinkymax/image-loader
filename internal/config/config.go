@@ -1,9 +1,12 @@
 package config
 
-import "github.com/kelseyhightower/envconfig"
+import (
+	"github.com/kelseyhightower/envconfig"
+)
 
 type Config struct {
-	DB *DB `envconfig:"db"`
+	DB   *DB    `envconfig:"db"`
+	Port string `envconfig:"app_port"`
 }
 
 type DB struct {

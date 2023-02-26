@@ -94,15 +94,40 @@ func (u *UserRepo) UpdateUser(ctx context.Context, modelUser model.User) error {
 	return nil
 }
 
-func (u *UserRepo) DeleteUser(ctx context.Context, modelUser model.User) error {
-	query := `DELETE FROM users  WHERE id = :id`
+func (u *UserRepo) DeleteUser(ctx context.Context, id int64) error {
+	query := `DELETE FROM users where id = $1`
 
-	_, err := u.db.NamedExecContext(ctx, query, convertUser(modelUser))
+	_, err := u.db.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
 
 	return nil
+}
+
+func (u *UserRepo) GetAllUsers(ctx context.Context) ([]model.User, error) {
+
+	users := make([]model.User, 0)
+
+	rows, err := u.db.Queryx("SELECT * FROM users")
+
+	if err != nil {
+		return []model.User{}, fmt.Errorf("failed to scan users: %w", err)
+	}
+
+	for rows.Next() {
+		var userEntity user
+
+		err = rows.StructScan(&userEntity)
+		users = append(users, userEntity.toModel())
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return []model.User{}, fmt.Errorf("failed to mapping users: %w", err)
+	}
+
+	return users, nil
 }
 
 func convertUser(modelUser model.User) user {
