@@ -222,9 +222,12 @@ func (s *Server) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 
 	b, err := response.ParseResponse(token, false)
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
-
 	_, err = w.Write(b)
 	if err != nil {
 		s.handleError(err, http.StatusInternalServerError, w)
