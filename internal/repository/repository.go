@@ -127,10 +127,26 @@ func (u *UserRepo) GetAllUsers(ctx context.Context) ([]model.User, error) {
 
 	err = rows.Err()
 	if err != nil {
-		return []model.User{}, fmt.Errorf("failed to mapping users: %w", err)
+		return []model.User{}, fmt.Errorf("failed mapping users: %w", err)
 	}
 
 	return users, nil
+}
+
+func (u *UserRepo) CheckAuth(ctx context.Context, login, password string) (model.User, error) {
+	query := `SELECT * FROM users WHERE login = $1 AND password=$2`
+
+	var us user
+
+	row := u.db.QueryRowxContext(ctx, query, login, password)
+
+	err := row.StructScan(&us)
+	if err != nil {
+		return model.User{}, fmt.Errorf("failed to scan user: %w", err)
+	}
+
+	return us.toModel(), nil
+
 }
 
 func convertUser(modelUser model.User) user {
