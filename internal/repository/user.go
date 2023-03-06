@@ -13,7 +13,7 @@ import (
 )
 
 type user struct {
-	ID          int64          `db:"id"`
+	ID          int            `db:"id"`
 	Name        string         `db:"name"`
 	Login       string         `db:"login"`
 	Password    string         `db:"password"`

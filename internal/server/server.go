@@ -3,9 +3,11 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/go-chi/chi"
 	"github.com/sirupsen/logrus"
 	"github.com/spinkymax/image-loader/internal/config"
+	"github.com/spinkymax/image-loader/internal/constants"
 	"github.com/spinkymax/image-loader/internal/middleware"
 	"github.com/spinkymax/image-loader/internal/model"
 	"github.com/spinkymax/image-loader/internal/response"
@@ -15,11 +17,12 @@ import (
 )
 
 type User struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`
-	Login       string `json:"login"`
-	Password    string `json:"password"`
-	Description string `json:"description"`
+	ID          int      `json:"id"`
+	Name        string   `json:"name"`
+	Login       string   `json:"login"`
+	Password    string   `json:"password"`
+	Description string   `json:"description"`
+	ImageUrls   []string `json:"image_urls,omitempty"`
 }
 
 type controller interface {
@@ -29,7 +32,7 @@ type controller interface {
 	DeleteUser(ctx context.Context, id int64) error
 	GetAllUsers(ctx context.Context) ([]model.User, error)
 	Authorize(ctx context.Context, login, password string) (string, error)
-	AddFile(ctx context.Context, filename string, file io.Reader) error
+	AddFile(ctx context.Context, image model.Image) error
 }
 
 type Server struct {
@@ -64,6 +67,7 @@ func (s *Server) RegisterRoutes() {
 		r.Put("/user/update", s.HandleUpdateUser)
 		r.Delete("/user/{userID}", s.HandleDeleteUser)
 		r.Get("/user", s.HandleGetAllUsers)
+		r.Post("/image/add", s.HandleAddFile)
 
 	})
 
@@ -82,6 +86,19 @@ func (s *Server) StartServer() {
 	}
 }
 
+// HandleAddUser add a new user
+//
+//	@Summary		AddUser
+//	@Description	create user
+//	@Tags			user
+//	@Accept			json
+//	@Produce		json
+//	@Param			user	body		User	true	"create user"
+//	@Success		200		{array}		response.Response
+//	@Failure		400		{object}	response.Response
+//	@Failure		404		{object}	response.Response
+//	@Failure		500		{object}	response.Response
+//	@Router			/user/add [post]
 func (s *Server) HandleAddUser(w http.ResponseWriter, r *http.Request) {
 	var user User
 
@@ -107,6 +124,19 @@ func (s *Server) HandleAddUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+// HandleGetUser get user by id
+//
+//	@Summary		GetUserById
+//	@Description	get user
+//	@Tags			user
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		string	true	"get user by ID"
+//	@Success		200	{array}		model.User
+//	@Failure		400	{object}	response.Response
+//	@Failure		404	{object}	response.Response
+//	@Failure		500	{object}	response.Response
+//	@Router			/user/{userID} [get]
 func (s *Server) HandleGetUser(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "userID")
 
@@ -135,6 +165,19 @@ func (s *Server) HandleGetUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleUpdateUser update user
+//
+//	@Summary		UpdateUser
+//	@Description	update user
+//	@Tags			user
+//	@Accept			json
+//	@Produce		json
+//	@Param			user	body		User	true	"update user"
+//	@Success		200		{array}		model.User
+//	@Failure		400		{object}	response.Response
+//	@Failure		404		{object}	response.Response
+//	@Failure		500		{object}	response.Response
+//	@Router			/user/update [put]
 func (s *Server) HandleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	var user User
 
@@ -160,6 +203,19 @@ func (s *Server) HandleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// HandleDeleteUser delete a user
+//
+//	@Summary		DeleteUser
+//	@Description	delete a user
+//	@Tags			user
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		string	true	"delete user"
+//	@Success		200	{array}		model.User
+//	@Failure		400	{object}	response.Response
+//	@Failure		404	{object}	response.Response
+//	@Failure		500	{object}	response.Response
+//	@Router			/user/{userID} [delete]
 func (s *Server) HandleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "userID")
 
@@ -178,6 +234,18 @@ func (s *Server) HandleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// HandleGetAllUsers get all users
+//
+//	@Summary		GetAllUser
+//	@Description	get all users
+//	@Tags			user
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{array}		model.User
+//	@Failure		400	{object}	response.Response
+//	@Failure		404	{object}	response.Response
+//	@Failure		500	{object}	response.Response
+//	@Router			/user/ [get]
 func (s *Server) HandleGetAllUsers(w http.ResponseWriter, r *http.Request) {
 	user, err := s.c.GetAllUsers(context.Background())
 	if err != nil {
@@ -199,6 +267,19 @@ func (s *Server) HandleGetAllUsers(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// HandleAuthorize issues a JWT
+//
+//	@Summary		Authorize
+//	@Description	Issue JWT
+//	@Tags			auth
+//	@Accept			json
+//	@Produce		json
+//	@Param			user	body		User	true	"authorize user"
+//	@Success		200		{array}		response.Response
+//	@Failure		400		{object}	response.Response
+//	@Failure		404		{object}	response.Response
+//	@Failure		500		{object}	response.Response
+//	@Router			/user/auth [get]
 func (s *Server) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	var user User
 
@@ -235,15 +316,41 @@ func (s *Server) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleAddFile add image to minio
+//
+//	@Summary		AddFile
+//	@Description	add image to minio
+//	@Tags			image
+//	@Accept			json
+//	@Produce		json
+//	@Param			fileKey	 formData		file	true	"upload images"
+//	@Success		200		{array}		response.Response
+//	@Failure		400		{object}	response.Response
+//	@Failure		404		{object}	response.Response
+//	@Failure		500		{object}	response.Response
+//	@Router			/image/add [post]
 func (s *Server) HandleAddFile(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("fileKey")
 	if err != nil {
 		s.handleError(err, http.StatusBadRequest, w)
 	}
 
-	err = s.c.AddFile(r.Context(), header.Filename, file)
+	defer file.Close()
+	userID, err := userIDFromCtx(r.Context())
 	if err != nil {
 		s.handleError(err, http.StatusInternalServerError, w)
+		return
+	}
+
+	err = s.c.AddFile(r.Context(), model.Image{
+		UserID:    userID,
+		Name:      header.Filename,
+		Data:      file,
+		Extension: ".jpg",
+	})
+	if err != nil {
+		s.handleError(err, http.StatusInternalServerError, w)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -273,4 +380,15 @@ func (u User) toModel() model.User {
 		Login:       u.Login,
 		Password:    u.Password,
 	}
+}
+
+func userIDFromCtx(ctx context.Context) (int, error) {
+	idAny := ctx.Value(constants.IdCtxKey)
+
+	id, ok := idAny.(int)
+	if !ok {
+		return 0, fmt.Errorf("couldn't cast user id from context")
+	}
+
+	return id, nil
 }

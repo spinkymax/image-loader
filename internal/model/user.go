@@ -1,9 +1,10 @@
 package model
 
 type User struct {
-	ID          int64
+	ID          int
 	Name        string
 	Login       string
 	Password    string
 	Description string
+	ImageUrls   []string
 }

@@ -9,6 +9,7 @@ type Config struct {
 	DB         *DB    `envconfig:"db"`
 	Port       string `envconfig:"app_port"`
 	Minio      Minio  `envconfig:"minio"`
+	TgBot      TgBot  `envconfig:"tgbot"`
 }
 
 type DB struct {
@@ -24,6 +25,10 @@ type Minio struct {
 	SecretKey string `envconfig:"secret_key"`
 	Endpoint  string `envconfig:"endpoint"`
 	Bucket    string `envconfig:"bucket"`
+}
+
+type TgBot struct {
+	APIKey string `envconfig:"api_key" required:"true"`
 }
 
 func (c *Config) Process() error {
