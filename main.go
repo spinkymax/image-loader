@@ -9,12 +9,25 @@ import (
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	"github.com/sirupsen/logrus"
 	"github.com/spinkymax/image-loader/internal/config"
+	"github.com/spinkymax/image-loader/internal/filestore"
 	"github.com/spinkymax/image-loader/internal/repository"
 	"github.com/spinkymax/image-loader/internal/server"
 	"github.com/spinkymax/image-loader/internal/service"
+	"github.com/spinkymax/image-loader/internal/telegram"
 )
 
+//	@title			Example Project API
+//	@version		1.0
+//	@description	Это API учебного проекта
+
+//	@license.name	Apache 2.0
+//	@license.url	http://www.apache.org/licenses/LICENSE-2.0.html
+
+//	@host		localhost:8000
+//	@BasePath	/
+
 func main() {
+
 	ctx := context.Background()
 
 	logger := logrus.New()
@@ -54,18 +67,28 @@ func main() {
 		}
 	}
 
+	fileStore := filestore.NewMinio(minioClient, cfg.Minio.Bucket)
+
 	userRepo := repository.NewUserRepo(db, cfg.DB)
+
+	imageRepo := repository.NewImageRepo(db, cfg.DB)
 
 	err = userRepo.RunMigrations()
 	if err != nil {
 		logger.Warning(err)
 	}
 
-	controller := service.NewController(userRepo, cfg, minioClient)
+	controller := service.NewController(userRepo, imageRepo, cfg, fileStore)
 
 	srv := server.NewServer(cfg.Port, logger, controller, cfg)
 	srv.RegisterRoutes()
 
-	srv.StartServer()
+	bot, err := telegram.NewBot(cfg.TgBot.APIKey, logger, controller)
+	if err != nil {
+		logger.Fatal(err)
+	}
 
+	go bot.StartBot()
+
+	srv.StartServer()
 }

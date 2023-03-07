@@ -49,7 +49,7 @@ func Auth(keyword string, l *logrus.Logger) func(next http.Handler) http.Handler
 			}
 
 			ctx := r.Context()
-			ctx = context.WithValue(ctx, constants.IdCtxKey, id)
+			ctx = context.WithValue(ctx, constants.IdCtxKey, int(id))
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 
