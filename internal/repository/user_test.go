@@ -35,6 +35,9 @@ func TestUserRepo_AddUser(t *testing.T) {
 	assert.NoError(t, err)
 
 	user, err := userRepo.CheckAuth(context.Background(), "test", "test")
+	if err != nil {
+		require.Error(t, err)
+	}
 	assert.Equal(t, "test", user.Login)
 	assert.Equal(t, "test", user.Password)
 }
