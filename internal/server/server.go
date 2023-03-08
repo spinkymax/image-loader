@@ -16,6 +16,8 @@ import (
 	"strconv"
 )
 
+//go:generate mockgen -source ./server.go -destination ../mock/server.go -package mock
+
 type User struct {
 	ID          int      `json:"id"`
 	Name        string   `json:"name"`
