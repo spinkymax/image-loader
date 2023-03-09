@@ -13,6 +13,7 @@ import (
 	"time"
 )
 
+//go:generate mockgen -source ./service.go -destination ../mock/service.go -package mock
 type repository interface {
 	AddUser(ctx context.Context, user model.User) error
 	GetUser(ctx context.Context, id int64) (model.User, error)
